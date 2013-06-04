@@ -64,11 +64,12 @@ class ClasificadorBayes(object):
         features = [feature for feature in self.spl.findall(text.lower()) if len(feature) > 1]
         features = set(features)
         for feature in features:
-            for label in labels:
-                if labels[label] != 0:
-                    labels[label] *= self.getfprob(feature, label)
-                else:
-                    labels[label] = self.getfprob(feature, label)
+            if self.db.exists(feature):
+                for label in labels:
+                    if labels[label] != 0:
+                        labels[label] *= self.getfprob(feature, label)
+                    else:
+                        labels[label] = self.getfprob(feature, label)
 
         for label in labels:
             cprob = self.getcprob(label)
@@ -85,7 +86,7 @@ class ClasificadorBayes(object):
     def exporttrain(self, files):
         with open(files, 'w+') as backup:
             for clase in self.clases:
-                backups = ('clase|'+clase+'|'+self.db.hget('.-'+clase, 'cprob')+'\n').encode('utf-8')
+                backups = 'clase|'+clase+'|'+self.db.hget('.-'+clase, 'cprob')+'\n'
                 backup.write(backups)
 
             features = [feature for feature in self.db.keys(pattern='*') if feature[0] != '.']
@@ -93,7 +94,8 @@ class ClasificadorBayes(object):
                 backups = 'feature|'+feature+'|'
                 for clase in self.clases:
                     backups = backups+self.db.hget(feature, clase)+'|'
-                backups = (backups+'\n').encode('utf-8')
+                backups = (backups+'\n')
+                #.encode('utf-8')
                 backup.write(backups)
             backup.close()
 
@@ -108,9 +110,9 @@ class ClasificadorBayes(object):
 
 
 def main():
-    clasi = ClasificadorBayes('TextoEntrenador.csv')
-    print clasi.clasifica('i love this car')
-    #clasi.exporttrain('pipiripau.txt')
+    clasi = ClasificadorBayes('TweetsdeEntrenamiento.csv')
+    print clasi.clasifica('estas hermosa')
+    clasi.exporttrain('backup.txt')
     clasi.db.flushdb()
 
 
