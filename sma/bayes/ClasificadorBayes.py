@@ -1,5 +1,6 @@
 import redis
 import re
+import csv
 
 
 class ClasificadorBayes(object):
@@ -15,11 +16,14 @@ class ClasificadorBayes(object):
         self.train(files)
 
     def train(self, files):
+        ColumnaTexto = 5
+        ColumnaClase = 0
         with open(files, 'r') as archivo:
-            for line in archivo:
-                lines = self.spl.findall(line.lower())
-                clase = lines[-1]
-                linea = set(lines[0:-1])
+            listaCSV = csv.reader(archivo)
+            for lineCSV in listaCSV:
+                lines = self.spl.findall(lineCSV[ColumnaTexto].lower())
+                clase = lineCSV[ColumnaClase]
+                linea = set(lines)
                 for word in linea:
                     if len(word) > 1:
                         self.db.hincrby(word, '.'+clase)
@@ -27,6 +31,7 @@ class ClasificadorBayes(object):
                 self.db.hincrby('.-'+clase, 'ccont')
                 self.db.incr('.totalitems')
             archivo.close()
+        print 'datos cargados'
         clases = self.db.keys(pattern='.-*')
         self.clases = [clase[2:] for clase in clases]
         for clase in self.clases:
@@ -99,6 +104,40 @@ class ClasificadorBayes(object):
                 backup.write(backups)
             backup.close()
 
+    def exporttraintoC(self, files):
+        with open(files, 'w+') as backup:
+            features = [feat for feat in self.db.keys() if feat[0] != '.']
+            features.sort()
+            backups = '#define NUMCLASES '+str(len(self.clases))+'\n'
+            backups += '#define NUMFEATURES '+str(len(features))+'\n'
+            backups += 'struct labels{float prob; \n char *label;\n } clases [NUMCLASES]={'
+            backup.write(backups)
+            backups = ''
+            for clase in self.clases:
+                backups += '{'+self.db.hget('.-'+clase, 'cprob')+'f,"'+clase+'"},'
+            backups = backups[:-1]+'};\n typedef struct labels clasestipo;\n'
+            backup.write(backups)
+
+            backups = 'clasestipo probclases[NUMCLASES]={'
+            backup.write(backups)
+            backups = ''
+            for clase in self.clases:
+                backups += '{0.0f,"'+clase+'"},'
+            backups = backups[:-1]+'};\n'
+            backup.write(backups)
+
+            backups = 'struct feature{\nchar *feature;\nfloat probabilidades[NUMCLASES];\n} features[NUMFEATURES]={'
+            for feature in features:
+                backups += '{"'+feature+'",{'
+                for clase in self.clases:
+                    backups += self.db.hget(feature, clase)+'f,'
+
+                backups = backups[:-1]+'}},'
+            backups = backups[:-1]+'};\n typedef struct feature featuretipo; '
+
+            backup.write(backups)
+            backup.close()
+
     def sortea(self, a, b):
         if a[1] > b[1]:
             rst = -1
@@ -111,8 +150,12 @@ class ClasificadorBayes(object):
 
 def main():
     clasi = ClasificadorBayes('TweetsdeEntrenamiento.csv')
-    print clasi.clasifica('estas hermosa')
-    clasi.exporttrain('backup.txt')
+    print clasi.clasifica('chancho de plata')
+    print clasi.clasifica('no quiero trabajar')
+    print clasi.clasifica('hermoso')
+    print clasi.clasifica('esta horrible no')
+    print clasi.clasifica('no pasaras examen')
+   # clasi.exporttraintoC('entrenadorC.txt')
     clasi.db.flushdb()
 
 
