@@ -5,7 +5,7 @@ import csv
 
 class ClasificadorBayes(object):
     """docstring for Classifier"""
-    def __init__(self, files):
+    def __init__(self, files=None):
         db = 0
         self.db = redis.StrictRedis(host='localhost', db=db)
         self.spl = re.compile("[\w\xe1\xe9\xed\xf3\xfa\xf1\xfc']+")
@@ -13,14 +13,19 @@ class ClasificadorBayes(object):
         while self.db.dbsize() != 0:
             db += 1
             self.db = redis.StrictRedis(host='localhost', db=db)
-        self.train(files)
+        if files!=None:
+            self.train(files)
 
     def train(self, files):
         ColumnaTexto = 5
         ColumnaClase = 0
+        contador = 0
         with open(files, 'r') as archivo:
             listaCSV = csv.reader(archivo)
             for lineCSV in listaCSV:
+                contador += 1
+                if contador % 100 == 0:
+                    print contador
                 lines = self.spl.findall(lineCSV[ColumnaTexto].lower())
                 clase = lineCSV[ColumnaClase]
                 linea = set(lines)
@@ -31,16 +36,22 @@ class ClasificadorBayes(object):
                 self.db.hincrby('.-'+clase, 'ccont')
                 self.db.incr('.totalitems')
             archivo.close()
-        print 'datos cargados'
+
+    def setprobs(self,peso=1,probi=0.5):
         clases = self.db.keys(pattern='.-*')
         self.clases = [clase[2:] for clase in clases]
         for clase in self.clases:
             self.setcprob(clase)
-        features = self.db.keys()
+        features = [key for key in self.db.keys() if key[0] != '.' and key[0] != '-']
+        numfeatures=len(features)
+        contador=0
         for feature in features:
-            if feature[0] != '.':
-                for clase in self.clases:
-                    self.setfprob(feature, clase)
+            contador+=1
+            if contador%(numfeatures/100)==0:
+                print str((100*contador)/numfeatures)+'% calculado para probi ='+probi
+            for clase in self.clases:
+                self.setfprob(feature, clase,peso=peso,probi=probi)
+
 
     def setcprob(self, clase):
         ccont = float(self.db.hget('.-'+clase, 'ccont'))
@@ -63,6 +74,14 @@ class ClasificadorBayes(object):
 
     def getfprob(self, feature, clase):
         return float(self.db.hget(feature, clase))
+
+    def setfprobs(self, text, peso=1, probi=0.5):
+        features = [feature for feature in self.spl.findall(text.lower()) if len(feature) > 1]
+        features = set(features)
+        for feature in features:
+            if self.db.exists(feature):
+                for clase in self.clases:
+                    self.setfprob(feature, clase,peso=peso,probi=probi)    
 
     def clasifica(self, text):
         labels = dict([(clase, 0) for clase in self.clases])
@@ -147,6 +166,10 @@ class ClasificadorBayes(object):
             rst = 0
         return rst
 
+    def loadFromRedis(self, db=0):
+        self.db = redis.StrictRedis(host='localhost', db=db)
+        clases=self.db.keys(pattern='.-*')
+        self.clases=[clase[2:] for clase in clases]
 
 def main():
     clasi = ClasificadorBayes('TweetsdeEntrenamiento.csv')
