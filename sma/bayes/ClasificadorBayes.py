@@ -17,6 +17,14 @@ class ClasificadorBayes(object):
         if files is not None:
             self.ConteoTrain(files)
 
+    def setProbsInd(self, Individuo, featurelist):
+        parametros = Individuo[1]
+        contador = 1
+        for feature in featurelist:
+            for clase in self.clases:
+                self.setfprob(feature, clase, peso=parametros[0], probi=parametros[contador])
+            contador += 1
+
     def ConteoTrain(self, files):
         ColumnaTexto = 1
         ColumnaClase = 0
@@ -157,9 +165,9 @@ class ClasificadorBayes(object):
             backup.write(backups)
 
             backups = 'struct feature{\nchar *feature;\nfloat probabilidades[NUMCLASES];\n} features[NUMFEATURES]={'
-            for feature in features:
+            for feature in features[:-1]:
                 backups += '{"'+feature+'",{'
-                for clase in self.clases:
+                for clase in self.clases[:-1]:
                     backups += self.db.hget(feature, clase)+'f,'
 
                 backups = backups[:-1]+'}},'
