@@ -5,11 +5,9 @@ import csv
 
 class ClasificadorBayes(object):
     """docstring for Classifier"""
-    def __init__(self, files=None):
-        db = 0
+    def __init__(self, files=None,db = 0):
         self.db = redis.StrictRedis(host='localhost', db=db)
         self.spl = re.compile("[\w\xe1\xe9\xed\xf3\xfa\xf1\xfc']+")
-        self.dict = {}
 
         while self.db.dbsize() != 0:
             db += 1
